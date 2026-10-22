@@ -1,0 +1,4 @@
+# REA captures hold page content, network bodies and possibly session data.
+captures/
+*.har
+*.saz
