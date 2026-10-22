@@ -1,7 +1,14 @@
 # MailSuite_REA
 
-A self-hosted email open and click tracker with an analytics dashboard, plus the REA
-workspace used to study the Mailsuite dashboard.
+A Google Sheets mail merge for CSC professor outreach, a self-hosted email open and click
+tracker with an analytics dashboard, and the REA workspace used to study the Mailsuite
+dashboard.
+
+## CSC outreach mail merge
+
+[`mail-merge/`](mail-merge/README.md) is a Google Sheets script that sends your
+personalised professor emails from Gmail, 40 per weekday, one per research group, with
+your CV attached. It runs on Google's servers; setup steps are in its README.
 
 ## Mail tracker
 
