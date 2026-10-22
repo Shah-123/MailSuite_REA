@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mail Tracker</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%232563eb' d='M2 6l10 7 10-7v12H2z'/><path fill='%2393c5fd' d='M2 6h20l-10 7z'/></svg>" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/vendor/chart.js/chart.umd.js" defer></script>
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <div id="login" class="login" hidden>
+      <form class="card login-card" id="login-form">
+        <div class="brand"><span class="brand-mark">✓✓</span> Mail Tracker</div>
+        <p class="muted">Paste the API key from <code>npm run create-user</code>.</p>
+        <input id="api-key" type="password" placeholder="mt_…" autocomplete="off" required />
+        <p id="login-error" class="error" hidden></p>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+    </div>
+
+    <div id="shell" class="shell" hidden>
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">✓✓</span> Mail Tracker</div>
+        <nav>
+          <a href="#/overview" data-nav="overview">Overview</a>
+          <a href="#/emails" data-nav="emails">Tracked emails</a>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="live-dot" id="live-dot" title="Live updates"></span>
+          <span id="user-email" class="muted"></span>
+          <button class="link-btn" id="sign-out">Sign out</button>
+        </div>
+      </aside>
+
+      <main id="view" class="view"></main>
+    </div>
+
+    <dialog id="drawer" class="drawer"></dialog>
+    <dialog id="modal" class="modal"></dialog>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+  </body>
+</html>

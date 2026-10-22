@@ -2,3 +2,6 @@
 captures/
 *.har
 *.saz
+node_modules/
+data/
+.env
