@@ -15,11 +15,13 @@ const CONFIG = {
   ATTACH_CV: true,
   SENDER_NAME: "Shahkar Ahmad Shah",
   DAILY_LIMIT: 40,
-  // Professors' local time; sending happens on their weekday mornings.
-  TIMEZONE: "Asia/Shanghai",
+  // When to send, in TIMEZONE. Write times as "05:15" or "5:15 am".
+  // The day's emails are spread out between SEND_FROM and SEND_UNTIL.
+  // 05:15–08:15 in Pakistan is 08:15–11:15 for professors in China.
+  TIMEZONE: "Asia/Karachi",
+  SEND_FROM: "05:15",
+  SEND_UNTIL: "08:15",
   SEND_WEEKDAYS: [1, 2, 3, 4, 5], // 1 = Monday … 7 = Sunday
-  WINDOW_START_HOUR: 9,
-  WINDOW_END_HOUR: 12,
   // Random pause between two emails in the same run.
   PAUSE_SECONDS: [10, 25],
   FIT_ORDER: ["Strong", "Good", "Moderate"],
@@ -33,7 +35,9 @@ const ACTIVE_STATUSES = ["Emailed", "Follow-up sent", "Replied", "Interview", "A
 const DEFAULT_STATUSES = ["Not contacted", "Emailed", "Follow-up sent", "Replied", "Interview", "Acceptance letter", "Declined", "No reply"];
 const EXTRA_STATUSES = ["On hold", "Bounced"];
 const LOG_HEADERS = ["Sent at", "#", "Name", "To", "Subject", "Thread ID", "Result", "Reply at"];
-const TRIGGER_MINUTES = 30;
+const PROFESSORS_TIMEZONE = "Asia/Shanghai";
+const TRIGGER_MINUTES = 5;
+const REPLY_CHECK_MINUTES = 30;
 const MAX_RUN_MS = 4.5 * 60 * 1000; // Apps Script stops a run at 6 minutes.
 const EMAIL_PATTERN = /^[^@\s,;]+@[^@\s,;]+\.[A-Za-z]{2,}$/;
 const AUTO_REPLY_PATTERN = /auto(matic)?[\s-]*reply|out of (the )?office|自动回复|vacation/i;
@@ -55,6 +59,7 @@ function onOpen() {
 }
 
 function setup() {
+  sendWindow_();
   const data = loadData_();
   ensureLogSheet_(data.ss);
   extendStatusDropdown_(data.prof);
@@ -103,16 +108,17 @@ function previewNextBatch() {
 }
 
 function startSending() {
+  const { start, end } = sendWindow_();
   const data = loadData_();
   ensureLogSheet_(data.ss);
   if (CONFIG.ATTACH_CV) cvBlob_();
   deleteTriggers_();
   ScriptApp.newTrigger("runScheduledBatch").timeBased().everyMinutes(TRIGGER_MINUTES).create();
-  const yours = data.ss.getSpreadsheetTimeZone();
+  const professors = (minutes) => formatTime_(shiftMinutes_(minutes, CONFIG.TIMEZONE, PROFESSORS_TIMEZONE));
   SpreadsheetApp.getUi().alert(
     "Sending is on",
-    `Up to ${CONFIG.DAILY_LIMIT} emails each weekday, between ${CONFIG.WINDOW_START_HOUR}:00 and ${CONFIG.WINDOW_END_HOUR}:00 ` +
-      `in ${CONFIG.TIMEZONE} (${shiftedHour_(CONFIG.WINDOW_START_HOUR, yours)}–${shiftedHour_(CONFIG.WINDOW_END_HOUR, yours)} in ${yours}).\n\n` +
+    `Up to ${CONFIG.DAILY_LIMIT} emails each weekday, spread between ${formatTime_(start)} and ${formatTime_(end)} ` +
+      `(${CONFIG.TIMEZONE}). Professors in China receive them between ${professors(start)} and ${professors(end)}.\n\n` +
       'Progress shows on "Send log". Use "Stop sending" to pause.',
     SpreadsheetApp.getUi().ButtonSet.OK,
   );
@@ -135,8 +141,13 @@ function runScheduledBatch() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10 * 1000)) return;
   try {
-    checkReplies_();
+    const props = PropertiesService.getScriptProperties();
+    if (Date.now() - Number(props.getProperty("lastReplyCheck") || 0) >= REPLY_CHECK_MINUTES * 60 * 1000) {
+      props.setProperty("lastReplyCheck", String(Date.now()));
+      checkReplies_();
+    }
     const now = new Date();
+    if (batchSizeFor_(localTime_(now), 0, CONFIG) === 0) return;
     const data = loadData_();
     const log = readLog_(data.ss);
     const today = dayKey_(now);
@@ -295,15 +306,40 @@ function pickBatch_(profRows, draftRows, log, limit, fitOrder) {
 }
 
 // How many to send in this run so the rest of today's quota spreads evenly
-// over the remaining runs in the window. `local` is the professors' time.
+// over the remaining runs in the window. `local` is the time in TIMEZONE.
 function batchSizeFor_(local, sentToday, config) {
   if (!config.SEND_WEEKDAYS.includes(local.weekday)) return 0;
-  const start = config.WINDOW_START_HOUR * 60;
-  const end = config.WINDOW_END_HOUR * 60;
+  const { start, end } = sendWindow_(config);
   if (local.minutes < start || local.minutes >= end) return 0;
   const remaining = Math.max(0, config.DAILY_LIMIT - sentToday);
   const runsLeft = Math.max(1, Math.ceil((end - local.minutes) / TRIGGER_MINUTES));
   return Math.ceil(remaining / runsLeft);
+}
+
+// SEND_FROM and SEND_UNTIL as minutes after midnight.
+function sendWindow_(config = CONFIG) {
+  const start = parseTime_(config.SEND_FROM);
+  const end = parseTime_(config.SEND_UNTIL);
+  if (end <= start) throw new Error(`SEND_UNTIL (${config.SEND_UNTIL}) must be later than SEND_FROM (${config.SEND_FROM}) on the same day.`);
+  return { start, end };
+}
+
+// "05:15", "5:15", "5:15 am", "17:15" or "5:15 pm" → minutes after midnight.
+function parseTime_(value) {
+  const match = /^\s*(\d{1,2}):(\d{2})\s*([ap]\.?m\.?)?\s*$/i.exec(String(value));
+  const invalid = () => new Error(`"${value}" is not a time. Write it like "05:15" or "5:15 am".`);
+  if (!match) throw invalid();
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const suffix = (match[3] || "").replace(/\./g, "").toLowerCase();
+  if (minutes > 59 || hours > (suffix ? 12 : 23) || (suffix && hours === 0)) throw invalid();
+  if (suffix === "pm" && hours < 12) hours += 12;
+  if (suffix === "am" && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function formatTime_(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 function normaliseEmail_(value) {
@@ -422,12 +458,11 @@ function pauseMs_() {
   return Math.round((min + Math.random() * (max - min)) * 1000);
 }
 
-// Converts an hour in CONFIG.TIMEZONE to "HH:MM" in another timezone.
-function shiftedHour_(hour, timeZone) {
+// Converts a time of day (minutes after midnight) from one timezone to another.
+function shiftMinutes_(minutes, fromZone, toZone) {
   const offset = (tz) => {
     const z = Utilities.formatDate(new Date(), tz, "Z");
     return (z[0] === "-" ? -1 : 1) * (Number(z.slice(1, 3)) * 60 + Number(z.slice(3, 5)));
   };
-  const minutes = (((hour * 60 + offset(timeZone) - offset(CONFIG.TIMEZONE)) % 1440) + 1440) % 1440;
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  return (((minutes + offset(toZone) - offset(fromZone)) % 1440) + 1440) % 1440;
 }

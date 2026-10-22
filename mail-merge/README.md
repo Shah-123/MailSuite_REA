@@ -3,8 +3,8 @@
 A Google Sheets script that sends the personalised emails on your professor sheet from
 your own Gmail. It runs on Google's servers, so your computer can be off.
 
-- Up to **40 emails per weekday**, between **9:00 and 12:00 China time** (06:00–09:00 in
-  Pakistan), spread over that window with pauses between emails.
+- Up to **40 emails per weekday**, spread out between times you choose. The default is
+  **05:15 to 08:15 Pakistan time**, which is 08:15–11:15 for professors in China.
 - Strong fit first, then Good, then Moderate.
 - **One professor per research group.** The next person in a group is emailed only
   after you set the first one's Status to Declined or No reply.
@@ -58,12 +58,22 @@ These are at the top of `Code.gs`. Save after changing them.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
+| `SEND_FROM` | `"05:15"` | When sending starts each weekday |
+| `SEND_UNTIL` | `"08:15"` | When it stops; the day's emails are spread out in between |
+| `TIMEZONE` | `Asia/Karachi` | Timezone of the two times above and of `SEND_WEEKDAYS` |
 | `DAILY_LIMIT` | `40` | Emails per weekday |
-| `WINDOW_START_HOUR`, `WINDOW_END_HOUR` | `9`, `12` | Sending window, in `TIMEZONE` |
 | `SEND_WEEKDAYS` | Mon–Fri | 1 = Monday … 7 = Sunday |
-| `TIMEZONE` | `Asia/Shanghai` | The professors' timezone |
 | `ATTACH_CV` | `true` | Attach the PDF from `CV_DRIVE_LINK` |
 | `SENDER_NAME` | `Shahkar Ahmad Shah` | Name shown in the From line |
+
+Write times as `"05:15"` or `"5:15 am"`; for the afternoon use `"17:15"` or `"5:15 pm"`.
+The script checks every 5 minutes, so sending starts within about 5 minutes of
+`SEND_FROM`. To get all 40 out quickly, set `SEND_UNTIL` 30–60 minutes after `SEND_FROM`.
+Keep it at least 20 minutes, because the script pauses between emails.
+
+New settings apply from the next check; you don't need to restart anything. If you
+started sending with an earlier version of this script, paste the new code, **Save**,
+and choose **Start daily sending** once more.
 
 ## Limits
 
